@@ -165,6 +165,10 @@ func (server *Server) createNewPlot(config *Config) {
 		}
 	}
 
+	for key, size := range plotSizes {
+		log.Printf("Size of %s - %d", key, uint64(size)/GB)
+	}
+
 	var phase12MaxPlotSizes int64 = 0
 	var phase12CurrPlotSizes int64 = 0
 	for _, plot := range server.active {
@@ -191,11 +195,18 @@ func (server *Server) createNewPlot(config *Config) {
 	}
 
 	plotDirSpace += uint64(phase12CurrPlotSizes)
-	plotDirSpace -= uint64(phase12MaxPlotSizes)
+	if uint64(phase12MaxPlotSizes) < plotDirSpace {
+		plotDirSpace -= uint64(phase12MaxPlotSizes)
+	} else {
+		plotDirSpace = 0
+	}
 
 	if plotDirSpace < TMP_SIZE {
 		log.Printf("Skipping new plot, not enough space on temp for new")
+		log.Printf("Wanted %d had %d", TMP_SIZE, plotDirSpace)
 		return
+	} else {
+		log.Printf("Enough Space wanted %d had %d", TMP_SIZE, plotDirSpace)
 	}
 	//END - check temp space
 
