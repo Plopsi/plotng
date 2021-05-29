@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path"
 	"regexp"
 	"strings"
 	"sync"
@@ -89,10 +90,7 @@ func (server *Server) createNewPlot(config *Config) {
 	}
 	if config.MaxActivePlotPerPhase1 > 0 {
 		getPhase1 := func(plot *ActivePlot) bool {
-			if strings.HasPrefix(plot.Phase, "1/4") {
-				return true
-			}
-			return false
+			return strings.HasPrefix(plot.Phase, "1/4")
 		}
 
 		var sum int
@@ -156,12 +154,20 @@ func (server *Server) createNewPlot(config *Config) {
 	var plotFileRegEx = regexp.MustCompile(`k\d{2}-\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-([a-z0-9]{64})`)
 	for _, file := range files {
 		if file.IsDir() || file.Name() == "." || file.Name() == ".." {
+			log.Printf("Skipping %s", file.Name())
 			continue
 		}
 
 		if plotFileRegEx.MatchString(file.Name()) {
 			plotId := plotFileRegEx.FindStringSubmatch(file.Name())[1]
-			plotSizes[plotId] += file.Size()
+			stat, err := os.Stat(path.Join(plotDir, file.Name()))
+			if err != nil {
+				log.Printf("Stat failed")
+				return
+			}
+			size := stat.Size()
+			log.Printf("File %s size %d", file.Name(), size)
+			plotSizes[plotId] += size
 		}
 	}
 
