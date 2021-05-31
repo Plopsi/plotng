@@ -123,8 +123,6 @@ func (server *Server) createNewPlot(config *Config) {
 		return
 	}
 
-	server.targetDelayStartTime = time.Now().Add(time.Duration(config.DelaysBetweenPlot) * time.Minute)
-
 	targetDirSpace := server.getDiskSpaceAvailable(targetDir)
 	if config.DiskSpaceCheck && (server.countActiveTarget(targetDir)+1)*PLOT_SIZE > targetDirSpace {
 		log.Printf("Skipping [%s], Not enough space: %d", targetDir, targetDirSpace/GB)
@@ -215,6 +213,8 @@ func (server *Server) createNewPlot(config *Config) {
 		log.Printf("Enough Space wanted %d had %d", TMP_SIZE, plotDirSpace)
 	}
 	//END - check temp space
+
+	server.targetDelayStartTime = time.Now().Add(time.Duration(config.DelaysBetweenPlot) * time.Minute)
 
 	t := time.Now()
 	plot := &ActivePlot{
