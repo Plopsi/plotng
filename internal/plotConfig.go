@@ -22,6 +22,7 @@ type Config struct {
 	StaggeringDelay        int
 	ShowPlotLog            bool
 	DiskSpaceCheck         bool
+	TempSpaceCheck         bool
 	DelaysBetweenPlot      int
 	MaxActivePlotPerTarget int
 	MaxActivePlotPerTemp   int
@@ -29,6 +30,7 @@ type Config struct {
 	UseTargetForTmp2       bool
 	BucketSize             int
 	SavePlotLogDir         string
+	ExcludeFinalDir        bool
 }
 
 type PlotConfig struct {

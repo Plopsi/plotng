@@ -129,90 +129,78 @@ func (server *Server) createNewPlot(config *Config) {
 		return
 	}
 
-	//check temp space
-	plotDirSpace := server.getDiskSpaceAvailable(plotDir)
-	log.Printf("Dispace %s: %d", plotDir, plotDirSpace/GB)
+	if config.TempSpaceCheck {
+		plotDirSpace := server.getDiskSpaceAvailable(plotDir)
+		log.Printf("Diskspace %s: %d", plotDir, plotDirSpace/GB)
 
-	var plotSizes map[string]int64 = make(map[string]int64)
+		var plotSizes map[string]int64 = make(map[string]int64)
 
-	dir, err := os.Open(plotDir)
+		dir, err := os.Open(plotDir)
 
-	if err != nil {
-		log.Printf("Error opening directory")
-		return
-	}
-	defer dir.Close()
+		if err != nil {
+			log.Printf("Error opening directory, skipping!")
+			return
+		}
+		defer dir.Close()
 
-	files, err := dir.Readdir(-1)
-	if err != nil {
-		log.Printf("Error reading directory")
-		return
-	}
-
-	var plotFileRegEx = regexp.MustCompile(`k\d{2}-\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-([a-z0-9]{64})`)
-	for _, file := range files {
-		if file.IsDir() || file.Name() == "." || file.Name() == ".." {
-			log.Printf("Skipping %s", file.Name())
-			continue
+		files, err := dir.Readdir(-1)
+		if err != nil {
+			log.Printf("Error reading directory, skipping!")
+			return
 		}
 
-		if plotFileRegEx.MatchString(file.Name()) {
-			plotId := plotFileRegEx.FindStringSubmatch(file.Name())[1]
-			stat, err := os.Stat(path.Join(plotDir, file.Name()))
-			if err != nil {
-				log.Printf("Stat failed")
-				return
+		var plotFileRegEx = regexp.MustCompile(`k\d{2}-\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-([a-z0-9]{64})`)
+		for _, file := range files {
+			if file.IsDir() || file.Name() == "." || file.Name() == ".." {
+				continue
 			}
-			size := stat.Size()
-			log.Printf("File %s size %d", file.Name(), size)
-			plotSizes[plotId] += size
-		}
-	}
 
-	for key, size := range plotSizes {
-		log.Printf("Size of %s - %d", key, uint64(size)/GB)
-	}
-
-	var phase12MaxPlotSizes int64 = 0
-	var phase12CurrPlotSizes int64 = 0
-	for _, plot := range server.active {
-		if plot.PlotDir == plotDir {
-			phase := server.getPlotPhase(plot)
-
-			switch phase {
-			case 1:
-				log.Printf("Plot %s in Phase 1", plot.Id)
-				phase12MaxPlotSizes += int64(TMP_SIZE)
-				phase12CurrPlotSizes += plotSizes[plot.Id]
-			case 2:
-				log.Printf("Plot %s in Phase 2", plot.Id)
-				phase12MaxPlotSizes += int64(TMP_SIZE)
-				phase12CurrPlotSizes += plotSizes[plot.Id]
-			case 3:
-				log.Printf("Plot %s in Phase 3", plot.Id)
-			case 4:
-				log.Printf("Plot %s in Phase 4", plot.Id)
-			default:
-				log.Printf("Plot %s in Phase UKNOWN", plot.Id)
+			if plotFileRegEx.MatchString(file.Name()) {
+				plotId := plotFileRegEx.FindStringSubmatch(file.Name())[1]
+				stat, err := os.Stat(path.Join(plotDir, file.Name()))
+				if err != nil {
+					log.Printf("Stat on %s failed, skipping!", file.Name())
+					return
+				}
+				size := stat.Size()
+				plotSizes[plotId] += size
 			}
 		}
-	}
 
-	plotDirSpace += uint64(phase12CurrPlotSizes)
-	if uint64(phase12MaxPlotSizes) < plotDirSpace {
-		plotDirSpace -= uint64(phase12MaxPlotSizes)
-	} else {
-		plotDirSpace = 0
-	}
+		var phase12MaxPlotSizes int64 = 0
+		var phase12CurrPlotSizes int64 = 0
+		for _, plot := range server.active {
+			if plot.PlotDir == plotDir {
+				phase := server.getPlotPhase(plot)
 
-	if plotDirSpace < TMP_SIZE {
-		log.Printf("Skipping new plot, not enough space on temp for new")
-		log.Printf("Wanted %d had %d", TMP_SIZE, plotDirSpace)
-		return
-	} else {
-		log.Printf("Enough Space wanted %d had %d", TMP_SIZE, plotDirSpace)
+				switch phase {
+				case 1:
+					phase12MaxPlotSizes += int64(TMP_SIZE)
+					phase12CurrPlotSizes += plotSizes[plot.Id]
+				case 2:
+					phase12MaxPlotSizes += int64(TMP_SIZE)
+					phase12CurrPlotSizes += plotSizes[plot.Id]
+				case 3:
+				case 4:
+				default:
+					log.Printf("Plot %s in Phase UKNOWN", plot.Id)
+				}
+			}
+		}
+
+		plotDirSpace += uint64(phase12CurrPlotSizes)
+		if uint64(phase12MaxPlotSizes) < plotDirSpace {
+			plotDirSpace -= uint64(phase12MaxPlotSizes)
+		} else {
+			plotDirSpace = 0
+		}
+
+		if plotDirSpace < TMP_SIZE {
+			log.Printf("Skipping plot creation, not enough space on Temp [%s]", plotDir)
+			log.Printf("Would need %dB, but hat only %dB with current plot phases", TMP_SIZE, plotDirSpace)
+			return
+		}
 	}
-	//END - check temp space
 
 	server.targetDelayStartTime = time.Now().Add(time.Duration(config.DelaysBetweenPlot) * time.Minute)
 
@@ -221,6 +209,7 @@ func (server *Server) createNewPlot(config *Config) {
 		PlotId:           t.Unix(),
 		TargetDir:        targetDir,
 		PlotDir:          plotDir,
+		ExcludeFinalDir:  config.ExcludeFinalDir,
 		Fingerprint:      config.Fingerprint,
 		FarmerPublicKey:  config.FarmerPublicKey,
 		PoolPublicKey:    config.PoolPublicKey,

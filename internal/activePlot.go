@@ -42,6 +42,7 @@ type ActivePlot struct {
 	PlotSize        int
 	Buffers         int
 	DisableBitField bool
+	ExcludeFinalDir bool
 
 	Phase            string
 	Tail             []string
@@ -177,7 +178,6 @@ func (ap *ActivePlot) RunPlot() {
 			break
 		default:
 			break
-
 		}
 	}
 
@@ -189,6 +189,9 @@ func (ap *ActivePlot) RunPlot() {
 	}
 	if ap.BucketSize > 0 {
 		args = append(args, fmt.Sprintf("-u%d", ap.BucketSize))
+	}
+	if ap.ExcludeFinalDir {
+		args = append(args, "-x")
 	}
 
 	cmd := exec.Command("chia", args...)
