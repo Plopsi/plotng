@@ -21,13 +21,13 @@ type Client struct {
 	destDirsTable      *widget.SortedTable
 	archivedPlotsTable *widget.SortedTable
 
-	logTextbox          *tview.TextView
-	hosts               []string
-	msg                 map[string]*Msg
-	archivedTableActive bool
-	activeLogs          map[string][]string
-	archivedLogs        map[string][]string
-	logPlotId           string
+	logTextbox *tview.TextView
+	hosts      []string
+	msg        map[string]*Msg
+	//archivedTableActive bool
+	activeLogs   map[string][]string
+	archivedLogs map[string][]string
+	logPlotId    string
 }
 
 var httpClient = &http.Client{
@@ -37,7 +37,7 @@ var httpClient = &http.Client{
 func (client *Client) ProcessLoop(hostList string) {
 	for _, host := range strings.Split(hostList, ",") {
 		host = strings.TrimSpace(host)
-		if strings.Index(host, ":") < 0 {
+		if !strings.Contains(host, ":") {
 			host += ":8484"
 		}
 		client.hosts = append(client.hosts, host)
@@ -80,7 +80,7 @@ func (client *Client) getServerData(host string) (*Msg, error) {
 		if err := decoder.Decode(&msg); err == nil {
 			return &msg, nil
 		} else {
-			return nil, fmt.Errorf("Failed to decode message: %w", err)
+			return nil, fmt.Errorf("failed to decode message: %w", err)
 		}
 	} else {
 		return nil, err
@@ -284,7 +284,7 @@ func (client *Client) drawActivePlotsTable() {
 		}
 	}
 
-	for key, _ := range keysToRemove {
+	for key := range keysToRemove {
 		client.activePlotsTable.ClearRowData(key)
 	}
 
@@ -392,7 +392,7 @@ func (client *Client) drawPlotDirsTable() {
 		client.plotDirsTable.SetRowData(key, pdd)
 	}
 
-	for key, _ := range keysToRemove {
+	for key := range keysToRemove {
 		client.plotDirsTable.ClearRowData(key)
 	}
 
@@ -475,7 +475,7 @@ func (client *Client) drawDestDirsTable() {
 		client.destDirsTable.SetRowData(key, ddd)
 	}
 
-	for key, _ := range keysToRemove {
+	for key := range keysToRemove {
 		client.destDirsTable.ClearRowData(key)
 	}
 
@@ -559,7 +559,7 @@ func (client *Client) drawArchivedPlotsTable() {
 		}
 	}
 
-	for key, _ := range keysToRemove {
+	for key := range keysToRemove {
 		client.archivedPlotsTable.ClearRowData(key)
 	}
 

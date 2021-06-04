@@ -5,6 +5,7 @@ import (
 	"encoding/gob"
 	"fmt"
 	"log"
+	"math"
 	"net/http"
 	"os"
 	"path"
@@ -22,6 +23,7 @@ type Server struct {
 	archive              []*ActivePlot
 	currentTemp          int
 	currentTarget        int
+	currentThreadMap     int
 	targetDelayStartTime time.Time
 	lock                 sync.RWMutex
 }
@@ -202,6 +204,16 @@ func (server *Server) createNewPlot(config *Config) {
 		}
 	}
 
+	threadMask := 0
+	for i := 0; i < config.Threads; i++ {
+		threadMask |= int(math.Pow(2, float64(config.ThreadAffinityMap[server.currentThreadMap])))
+
+		server.currentThreadMap++
+		if server.currentThreadMap >= len(config.ThreadAffinityMap) {
+			server.currentThreadMap = 0
+		}
+	}
+
 	server.targetDelayStartTime = time.Now().Add(time.Duration(config.DelaysBetweenPlot) * time.Minute)
 
 	t := time.Now()
@@ -214,6 +226,7 @@ func (server *Server) createNewPlot(config *Config) {
 		FarmerPublicKey:  config.FarmerPublicKey,
 		PoolPublicKey:    config.PoolPublicKey,
 		Threads:          config.Threads,
+		ThreadAffinity:   threadMask,
 		Buffers:          config.Buffers,
 		PlotSize:         config.PlotSize,
 		DisableBitField:  config.DisableBitField,
@@ -284,9 +297,9 @@ func (server *Server) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 		for _, v := range server.active {
 			msg.Actives = append(msg.Actives, v)
 		}
-		for _, v := range server.archive {
-			msg.Archived = append(msg.Archived, v)
-		}
+
+		msg.Archived = append(msg.Archived, server.archive...)
+
 		if server.config.CurrentConfig != nil {
 			for _, dir := range server.config.CurrentConfig.TargetDirectory {
 				msg.TargetDirs[dir] = server.getDiskSpaceAvailable(dir)

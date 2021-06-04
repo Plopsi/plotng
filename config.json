@@ -1,7 +1,9 @@
 {
   "FarmerPublicKey": "",
   "PoolPublicKey": "",
+  "PoolNFT": "",
   "Threads": 2,
+  "ThreadAffinityMap": [0, 1, 2, 3, 4, 5, 6, 7],
   "Buffers": 3750,
   "PlotSize": 32,
   "NumberOfParallelPlots": 99,

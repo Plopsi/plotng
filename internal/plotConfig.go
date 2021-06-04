@@ -15,7 +15,9 @@ type Config struct {
 	Fingerprint            string
 	FarmerPublicKey        string
 	PoolPublicKey          string
+	PoolNFT                string
 	Threads                int
+	ThreadAffinityMap      []int
 	PlotSize               int
 	Buffers                int
 	DisableBitField        bool

@@ -9,9 +9,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -38,7 +40,9 @@ type ActivePlot struct {
 	Fingerprint     string
 	FarmerPublicKey string
 	PoolPublicKey   string
+	PoolNFT         string
 	Threads         int
+	ThreadAffinity  int
 	PlotSize        int
 	Buffers         int
 	DisableBitField bool
@@ -136,6 +140,7 @@ func (ap *ActivePlot) RunPlot() {
 	defer func() {
 		ap.EndTime = time.Now()
 	}()
+
 	args := []string{
 		"plots", "create",
 		"-n1",
@@ -150,6 +155,9 @@ func (ap *ActivePlot) RunPlot() {
 	}
 	if len(ap.PoolPublicKey) > 0 {
 		args = append(args, "-p"+ap.PoolPublicKey)
+	}
+	if len(ap.PoolNFT) > 0 {
+		args = append(args, "-c"+ap.PoolNFT)
 	}
 	if ap.Threads > 0 {
 		args = append(args, fmt.Sprintf("-r%d", ap.Threads))
@@ -166,18 +174,12 @@ func (ap *ActivePlot) RunPlot() {
 		switch ap.PlotSize {
 		case 32:
 			args = append(args, fmt.Sprintf("-b%d", 3390))
-			break
 		case 33:
 			args = append(args, fmt.Sprintf("-b%d", 7400))
-			break
 		case 34:
 			args = append(args, fmt.Sprintf("-b%d", 14800))
-			break
 		case 35:
 			args = append(args, fmt.Sprintf("-b%d", 29600))
-			break
-		default:
-			break
 		}
 	}
 
@@ -219,6 +221,20 @@ func (ap *ActivePlot) RunPlot() {
 	} else {
 		ap.process = cmd.Process
 		ap.Pid = cmd.Process.Pid
+		if runtime.GOOS == "windows" && ap.ThreadAffinity > 0 {
+			const PROCESS_SET_INFORMATION = 0x200
+			log.Printf("Setting Affinity to %d", ap.ThreadAffinity)
+			handle, err := syscall.OpenProcess(syscall.PROCESS_QUERY_INFORMATION|PROCESS_SET_INFORMATION, false, uint32(ap.Pid))
+			if err == nil {
+				procSetProcessAffinityMask := syscall.MustLoadDLL("kernel32.dll").MustFindProc("SetProcessAffinityMask")
+				p1, _, err := syscall.Syscall(procSetProcessAffinityMask.Addr(), 2, uintptr(handle), uintptr(ap.ThreadAffinity), 0)
+				if p1 == 0 {
+					log.Printf("Couldn't set AffinityMask [%d,%d]", p1, err)
+				}
+			} else {
+				log.Printf("Getting Process failed with %s", err)
+			}
+		}
 		if err := cmd.Wait(); err != nil {
 			if ap.State != PlotKilled {
 				ap.State = PlotError
@@ -231,7 +247,6 @@ func (ap *ActivePlot) RunPlot() {
 		}
 	}
 	ap.State = PlotFinished
-	return
 }
 
 func (ap *ActivePlot) processLogs(in io.ReadCloser) {
@@ -258,7 +273,7 @@ func (ap *ActivePlot) processLogs(in io.ReadCloser) {
 					logFilePath := filepath.Join(ap.SavePlotLogDir, fmt.Sprintf("plotng_log_%s.txt", ap.Id))
 					logFile, err = os.Create(logFilePath)
 					if err != nil {
-						fmt.Sprintf("Failed to create log file [%s]: %s", logFilePath, err)
+						log.Printf("Failed to create log file [%s]: %s", logFilePath, err)
 					} else {
 						for _, l := range ap.Tail {
 							logFile.Write([]byte(l))
@@ -267,7 +282,7 @@ func (ap *ActivePlot) processLogs(in io.ReadCloser) {
 				}
 			}
 			for phaseStr, progress := range progressTable {
-				if strings.Index(s, phaseStr) >= 0 {
+				if strings.Contains(s, phaseStr) {
 					ap.Progress = progress
 					break
 				}
@@ -286,7 +301,6 @@ func (ap *ActivePlot) processLogs(in io.ReadCloser) {
 	if logFile != nil {
 		logFile.Close()
 	}
-	return
 }
 
 func (ap *ActivePlot) cleanup() {
@@ -295,7 +309,7 @@ func (ap *ActivePlot) cleanup() {
 	}
 	if fileList, err := ioutil.ReadDir(ap.PlotDir); err == nil {
 		for _, file := range fileList {
-			if strings.Index(file.Name(), ap.Id) >= 0 && strings.HasSuffix(file.Name(), ".tmp") {
+			if strings.Contains(file.Name(), ap.Id) && strings.HasSuffix(file.Name(), ".tmp") {
 				fullPath := fmt.Sprintf("%s%c%s", ap.PlotDir, os.PathSeparator, file.Name())
 
 				if err := os.Remove(fullPath); err == nil {
