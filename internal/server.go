@@ -108,26 +108,26 @@ func (server *Server) createNewPlot(config *Config) {
 			return
 		}
 	}
-	server.currentTemp++
-	if server.currentTemp >= len(config.TempDirectory) {
-		server.currentTemp = 0
-	}
+
+	targetDir := config.TargetDirectory[server.currentTarget]
 	plotDir := config.TempDirectory[server.currentTemp]
+
 	if config.MaxActivePlotPerTemp > 0 && int(server.countActiveTemp(plotDir)) >= config.MaxActivePlotPerTemp {
 		log.Printf("Skipping [%s], too many active plots: %d", plotDir, int(server.countActiveTemp(plotDir)))
+		server.currentTemp++
 		return
 	}
-	targetDir := config.TargetDirectory[server.currentTarget]
-	server.currentTarget++
 
 	if config.MaxActivePlotPerTarget > 0 && int(server.countActiveTarget(targetDir)) >= config.MaxActivePlotPerTarget {
 		log.Printf("Skipping [%s], too many active plots: %d", targetDir, int(server.countActiveTarget(targetDir)))
+		server.currentTarget++
 		return
 	}
 
 	targetDirSpace := server.getDiskSpaceAvailable(targetDir)
 	if config.DiskSpaceCheck && (server.countActiveTarget(targetDir)+1)*PLOT_SIZE > targetDirSpace {
 		log.Printf("Skipping [%s], Not enough space: %d", targetDir, targetDirSpace/GB)
+		server.currentTarget++
 		return
 	}
 
@@ -200,6 +200,7 @@ func (server *Server) createNewPlot(config *Config) {
 		if plotDirSpace < TMP_SIZE {
 			log.Printf("Skipping plot creation, not enough space on Temp [%s]", plotDir)
 			log.Printf("Would need %dB, but hat only %dB with current plot phases", TMP_SIZE, plotDirSpace)
+			server.currentTemp++
 			return
 		}
 	}
@@ -215,6 +216,8 @@ func (server *Server) createNewPlot(config *Config) {
 	}
 
 	server.targetDelayStartTime = time.Now().Add(time.Duration(config.DelaysBetweenPlot) * time.Minute)
+	server.currentTarget++
+	server.currentTemp++
 
 	t := time.Now()
 	plot := &ActivePlot{
