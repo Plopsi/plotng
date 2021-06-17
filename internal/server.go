@@ -228,6 +228,7 @@ func (server *Server) createNewPlot(config *Config) {
 		Fingerprint:      config.Fingerprint,
 		FarmerPublicKey:  config.FarmerPublicKey,
 		PoolPublicKey:    config.PoolPublicKey,
+		PoolNFT:          config.PoolNFT,
 		Threads:          config.Threads,
 		ThreadAffinity:   threadMask,
 		Buffers:          config.Buffers,
